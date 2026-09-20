@@ -123,14 +123,19 @@ mkdir "$watch_root"
 chown -R nospace-test "$watch_root"
 ready="$watch_root/ready"
 sysctl -q -w fs.inotify.max_user_watches=16
-runuser -u nospace-test -- python3 "$project_dir/tests/hold_watches.py" "$watch_root" "$ready" 16 &
+# GitHub-hosted runners keep the checkout beneath a non-traversable home
+# directory. Feed the helper over stdin and copy the binary into our accessible
+# test root so the unprivileged test user can execute both safely.
+inotify_binary="$test_root/nospace"
+install -m 0755 "$binary" "$inotify_binary"
+runuser -u nospace-test -- python3 - "$watch_root" "$ready" 16 < "$project_dir/tests/hold_watches.py" &
 holder_pid=$!
 for _ in $(seq 1 100); do
   [[ -f "$ready" ]] && break
   sleep 0.05
 done
 [[ -f "$ready" ]]
-runuser -u nospace-test -- "$binary" "$watch_root" --json > "$test_root/inotify.json"
+runuser -u nospace-test -- "$inotify_binary" "$watch_root" --json > "$test_root/inotify.json"
 assert_cause "$test_root/inotify.json" inotify_exhaustion
 kill "$holder_pid"
 wait "$holder_pid" 2>/dev/null || true
