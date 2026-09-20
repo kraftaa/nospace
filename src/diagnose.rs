@@ -6,16 +6,21 @@ use std::collections::BTreeSet;
 pub fn diagnose(evidence: &Evidence) -> DiagnosisResult {
     let mut causes = Vec::new();
     let mut notes = Vec::new();
-    let create_errno = evidence.create_probe.outcome.errno();
+    let probe_errno = evidence.create_probe.outcome.errno();
 
-    if create_errno == Some(libc::EROFS) {
+    if probe_errno == Some(libc::EROFS) {
         causes.push(Diagnosis::ReadOnlyFilesystem);
     }
 
-    if create_errno == Some(libc::ENOSPC) {
-        if evidence.filesystem.inode_accounting_supported && evidence.filesystem.free_inodes == 0 {
+    if allocation_failed_with_enospc(&evidence.create_probe.outcome) {
+        if create_failed_with_enospc(&evidence.create_probe.outcome)
+            && evidence.filesystem.inode_accounting_supported
+            && evidence.filesystem.free_inodes == 0
+        {
             causes.push(Diagnosis::InodeExhaustion);
-        } else if evidence.filesystem.free_inodes == 0 {
+        } else if create_failed_with_enospc(&evidence.create_probe.outcome)
+            && evidence.filesystem.free_inodes == 0
+        {
             notes.push(format!(
                 "{} reports zero free inodes, but fixed inode accounting is not supported for confirmation",
                 evidence.mount.fs_type
@@ -79,6 +84,27 @@ pub fn diagnose(evidence: &Evidence) -> DiagnosisResult {
         contributing,
         notes,
     }
+}
+
+fn create_failed_with_enospc(probe: &ProbeResult) -> bool {
+    matches!(
+        probe,
+        ProbeResult::Error { phase: crate::model::ProbePhase::Create, errno }
+            if errno.code == libc::ENOSPC
+    )
+}
+
+fn allocation_failed_with_enospc(probe: &ProbeResult) -> bool {
+    matches!(
+        probe,
+        ProbeResult::Error {
+            phase: crate::model::ProbePhase::Create
+                | crate::model::ProbePhase::Write
+                | crate::model::ProbePhase::Fsync
+                | crate::model::ProbePhase::Close,
+            errno,
+        } if errno.code == libc::ENOSPC
+    )
 }
 
 fn unique_deleted_bytes(evidence: &Evidence) -> u64 {

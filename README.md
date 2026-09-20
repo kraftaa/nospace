@@ -85,7 +85,7 @@ cannot produce a confirmed diagnosis.
 - The exact mount ID from `statx(STATX_MNT_ID)`, matched to
   `/proc/self/mountinfo`
 - `statvfs` block, inode and read-only state
-- A collision-safe `openat(O_CREAT | O_EXCL)` → write → `fsync` → unlink probe
+- A collision-safe `openat(O_CREAT | O_EXCL)` → unlink → write → `fsync` probe
 - `inotify_init1` and `inotify_add_watch` separately
 - Inotify limits and visible watches belonging to the current UID
 - Accessible deleted-open regular files on the target filesystem
@@ -102,8 +102,9 @@ filesystem, changes permissions or performs cleanup. Its only default
 mutations are a uniquely named one-byte temporary file that is immediately
 removed and a temporary inotify watch that is closed before exit.
 
-The create probe calls `fsync` so delayed-allocation failures are observed. If
-cleanup itself fails, that exact failure is reported rather than hidden.
+The probe unlinks its random pathname immediately after opening it, then calls
+`fsync` so delayed-allocation failures are observed without leaving a named
+probe behind. If that early unlink fails, the exact failure is reported.
 
 ## Unsupported causes
 

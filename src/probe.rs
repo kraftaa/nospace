@@ -49,6 +49,16 @@ fn run_create_probe(directory: &Path) -> ProbeResult {
         return result;
     }
 
+    // Remove the directory entry before writing. The open descriptor remains
+    // valid, but no probe pathname is left behind if write or fsync fails.
+    // SAFETY: directory_fd is open and name is relative to it.
+    if unsafe { libc::unlinkat(directory_fd, name.as_ptr(), 0) } != 0 {
+        let result = last_failure(ProbePhase::Unlink);
+        close_fd(file_fd);
+        close_fd(directory_fd);
+        return result;
+    }
+
     let byte = [0x4eu8];
     // SAFETY: file_fd is open and byte points to one readable byte.
     let written = unsafe { libc::write(file_fd, byte.as_ptr().cast(), byte.len()) };
@@ -58,7 +68,8 @@ fn run_create_probe(directory: &Path) -> ProbeResult {
         } else {
             failure(ProbePhase::Write, libc::EIO)
         };
-        cleanup(directory_fd, file_fd, &name);
+        close_fd(file_fd);
+        close_fd(directory_fd);
         return result;
     }
 
@@ -66,39 +77,19 @@ fn run_create_probe(directory: &Path) -> ProbeResult {
     // SAFETY: file_fd is a valid open file descriptor.
     if unsafe { libc::fsync(file_fd) } != 0 {
         let result = last_failure(ProbePhase::Fsync);
-        cleanup(directory_fd, file_fd, &name);
+        close_fd(file_fd);
+        close_fd(directory_fd);
         return result;
     }
 
     // SAFETY: file_fd is valid and is closed exactly once here.
     if unsafe { libc::close(file_fd) } != 0 {
         let result = last_failure(ProbePhase::Close);
-        unlink(directory_fd, &name);
-        close_fd(directory_fd);
-        return result;
-    }
-
-    // SAFETY: directory_fd is open and name is relative to it.
-    if unsafe { libc::unlinkat(directory_fd, name.as_ptr(), 0) } != 0 {
-        let result = last_failure(ProbePhase::Unlink);
         close_fd(directory_fd);
         return result;
     }
     close_fd(directory_fd);
     ProbeResult::Success
-}
-
-fn cleanup(directory_fd: RawFd, file_fd: RawFd, name: &CString) {
-    close_fd(file_fd);
-    unlink(directory_fd, name);
-    close_fd(directory_fd);
-}
-
-fn unlink(directory_fd: RawFd, name: &CString) {
-    // SAFETY: cleanup is best effort with an open directory fd and valid name.
-    unsafe {
-        libc::unlinkat(directory_fd, name.as_ptr(), 0);
-    }
 }
 
 fn close_fd(fd: RawFd) {

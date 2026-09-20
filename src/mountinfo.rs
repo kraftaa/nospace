@@ -38,7 +38,7 @@ fn parse_line(line: &str) -> Result<MountInfo, String> {
         .split(',')
         .chain(fields[separator + 3].split(','))
         .filter(|option| !option.is_empty())
-        .map(str::to_owned)
+        .map(redact_option)
         .collect();
     options.sort();
     options.dedup();
@@ -50,6 +50,29 @@ fn parse_line(line: &str) -> Result<MountInfo, String> {
         fs_type,
         options,
     })
+}
+
+fn redact_option(option: &str) -> String {
+    let Some((key, _value)) = option.split_once('=') else {
+        return option.to_owned();
+    };
+    if matches!(
+        key.to_ascii_lowercase().as_str(),
+        "credential"
+            | "credentials"
+            | "key"
+            | "pass"
+            | "passwd"
+            | "password"
+            | "secret"
+            | "token"
+            | "user"
+            | "username"
+    ) {
+        format!("{key}=<redacted>")
+    } else {
+        option.to_owned()
+    }
 }
 
 fn unescape_mount_field(field: &str) -> Result<String, String> {
@@ -146,5 +169,26 @@ mod tests {
     fn rejects_malformed_input() {
         assert!(parse_mountinfo("1 2 3").is_err());
         assert!(parse_mountinfo("1 2 0:1 / /bad\\xx rw - ext4 none rw").is_err());
+    }
+
+    #[test]
+    fn redacts_sensitive_mount_option_values() {
+        let mounts = parse_mountinfo(
+            "42 31 8:2 / /mnt rw,password=hunter2 - cifs //server/share rw,username=alice,token=abc\n",
+        )
+        .unwrap();
+        assert!(
+            mounts[0]
+                .options
+                .contains(&"password=<redacted>".to_owned())
+        );
+        assert!(
+            mounts[0]
+                .options
+                .contains(&"username=<redacted>".to_owned())
+        );
+        assert!(mounts[0].options.contains(&"token=<redacted>".to_owned()));
+        assert!(!format!("{:?}", mounts[0]).contains("hunter2"));
+        assert!(!format!("{:?}", mounts[0]).contains("alice"));
     }
 }

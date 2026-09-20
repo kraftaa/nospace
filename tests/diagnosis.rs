@@ -122,3 +122,14 @@ fn unsupported_inode_accounting_never_confirms_inodes() {
     assert_eq!(result.status, ResultStatus::Unknown);
     assert!(result.causes.is_empty());
 }
+
+#[test]
+fn cleanup_enospc_is_not_classified_as_allocation_exhaustion() {
+    let cleanup_error = ProbeResult::Error {
+        phase: ProbePhase::Unlink,
+        errno: ErrnoInfo::new(libc::ENOSPC),
+    };
+    let result = diagnose(&evidence(cleanup_error, ProbeResult::Success, 0, 0));
+    assert_eq!(result.status, ResultStatus::Unknown);
+    assert!(result.causes.is_empty());
+}
