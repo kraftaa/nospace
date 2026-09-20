@@ -1,0 +1,31 @@
+[build-system]
+requires = ["maturin>=1.15,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "nospace-cli"
+dynamic = ["version"]
+description = "Evidence-based diagnosis for Linux ENOSPC failures"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+keywords = ["linux", "filesystem", "enospc", "inotify", "diagnostics"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Rust",
+  "Topic :: System :: Filesystems",
+  "Topic :: System :: Systems Administration",
+]
+
+[project.urls]
+Homepage = "https://github.com/kraftaa/nospace"
+Repository = "https://github.com/kraftaa/nospace"
+Issues = "https://github.com/kraftaa/nospace/issues"
+
+[tool.maturin]
+bindings = "bin"
+strip = true
