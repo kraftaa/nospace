@@ -103,14 +103,18 @@ fn unknown_is_first_class() {
 }
 
 #[test]
-fn successful_supported_probes_are_healthy() {
+fn successful_supported_probes_report_no_supported_failure() {
     let result = diagnose(&evidence(
         ProbeResult::Success,
         ProbeResult::Success,
         50,
         50,
     ));
-    assert_eq!(result.status, ResultStatus::Healthy);
+    assert_eq!(result.status, ResultStatus::NoSupportedFailure);
+    assert_eq!(
+        serde_json::to_value(result.status).unwrap(),
+        "no_supported_failure"
+    );
 }
 
 #[test]

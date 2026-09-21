@@ -69,7 +69,7 @@ pub fn diagnose(evidence: &Evidence) -> DiagnosisResult {
         && matches!(evidence.inotify_probe.add_watch, ProbeResult::Success)
         && !evidence.filesystem.read_only
     {
-        ResultStatus::Healthy
+        ResultStatus::NoSupportedFailure
     } else {
         ResultStatus::Unknown
     };

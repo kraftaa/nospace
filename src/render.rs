@@ -24,7 +24,7 @@ pub fn text(evidence: &Evidence, diagnosis: &DiagnosisResult, verbose: bool) -> 
     writeln!(output, "\nChecks:").unwrap();
     writeln!(
         output,
-        "  create file      {}",
+        "  file probe       {}",
         probe_label(&evidence.create_probe.outcome)
     )
     .unwrap();
@@ -84,8 +84,8 @@ pub fn text(evidence: &Evidence, diagnosis: &DiagnosisResult, verbose: bool) -> 
                 writeln!(output, "\nCONFIRMED: {}", diagnosis_label(*cause)).unwrap();
             }
         }
-        ResultStatus::Healthy => {
-            writeln!(output, "\nHEALTHY: supported probes succeeded").unwrap();
+        ResultStatus::NoSupportedFailure => {
+            writeln!(output, "\nOK: no supported failure detected").unwrap();
         }
         ResultStatus::Unknown => {
             writeln!(output, "\nUNKNOWN").unwrap();
@@ -103,7 +103,9 @@ pub fn text(evidence: &Evidence, diagnosis: &DiagnosisResult, verbose: bool) -> 
         }
     }
 
-    if !evidence.proc_scan.deleted_open.is_empty() {
+    if !evidence.proc_scan.deleted_open.is_empty()
+        && (verbose || !diagnosis.contributing.is_empty())
+    {
         writeln!(output, "\nDeleted-open files:").unwrap();
         let limit = if verbose { usize::MAX } else { 10 };
         for file in evidence.proc_scan.deleted_open.iter().take(limit) {
@@ -137,7 +139,9 @@ pub fn text(evidence: &Evidence, diagnosis: &DiagnosisResult, verbose: bool) -> 
         }
     }
 
-    if !evidence.proc_scan.inotify_consumers.is_empty() {
+    if !evidence.proc_scan.inotify_consumers.is_empty()
+        && (verbose || diagnosis.causes.contains(&Diagnosis::InotifyExhaustion))
+    {
         writeln!(output, "\nTop inotify consumers:").unwrap();
         writeln!(output, "  PID       PROCESS                  WATCHES").unwrap();
         let limit = if verbose { usize::MAX } else { 10 };

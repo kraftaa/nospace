@@ -14,10 +14,10 @@ fn temporary_directory(label: &str) -> PathBuf {
 }
 
 #[test]
-fn healthy_directory_is_probed_and_cleaned_up() {
-    let directory = temporary_directory("healthy");
+fn successful_directory_is_probed_and_cleaned_up() {
+    let directory = temporary_directory("success");
     let evidence = collect(&directory, CollectOptions::default()).unwrap();
-    assert_eq!(diagnose(&evidence).status, ResultStatus::Healthy);
+    assert_eq!(diagnose(&evidence).status, ResultStatus::NoSupportedFailure);
     assert_eq!(fs::read_dir(&directory).unwrap().count(), 0);
     fs::remove_dir(&directory).unwrap();
 }

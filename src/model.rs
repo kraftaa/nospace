@@ -148,7 +148,7 @@ pub struct ContributingEvidence {
 #[serde(rename_all = "snake_case")]
 pub enum ResultStatus {
     Confirmed,
-    Healthy,
+    NoSupportedFailure,
     Unknown,
 }
 

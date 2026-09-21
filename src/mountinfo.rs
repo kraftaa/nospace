@@ -61,13 +61,16 @@ fn redact_option(option: &str) -> String {
         "credential"
             | "credentials"
             | "key"
+            | "lowerdir"
             | "pass"
             | "passwd"
             | "password"
             | "secret"
             | "token"
+            | "upperdir"
             | "user"
             | "username"
+            | "workdir"
     ) {
         format!("{key}=<redacted>")
     } else {
@@ -174,7 +177,7 @@ mod tests {
     #[test]
     fn redacts_sensitive_mount_option_values() {
         let mounts = parse_mountinfo(
-            "42 31 8:2 / /mnt rw,password=hunter2 - cifs //server/share rw,username=alice,token=abc\n",
+            "42 31 8:2 / /mnt rw,password=hunter2 - overlay overlay rw,username=alice,token=abc,upperdir=/private/snapshot,workdir=/private/work,lowerdir=/private/base\n",
         )
         .unwrap();
         assert!(
@@ -188,7 +191,19 @@ mod tests {
                 .contains(&"username=<redacted>".to_owned())
         );
         assert!(mounts[0].options.contains(&"token=<redacted>".to_owned()));
+        assert!(
+            mounts[0]
+                .options
+                .contains(&"upperdir=<redacted>".to_owned())
+        );
+        assert!(mounts[0].options.contains(&"workdir=<redacted>".to_owned()));
+        assert!(
+            mounts[0]
+                .options
+                .contains(&"lowerdir=<redacted>".to_owned())
+        );
         assert!(!format!("{:?}", mounts[0]).contains("hunter2"));
         assert!(!format!("{:?}", mounts[0]).contains("alice"));
+        assert!(!format!("{:?}", mounts[0]).contains("/private/"));
     }
 }

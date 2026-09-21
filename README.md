@@ -12,7 +12,7 @@ Mount: /var
 Type: ext4
 
 Checks:
-  create file      ENOSPC during create
+  file probe       ENOSPC during create
   available space  82.4 GiB
   free inodes      0
   inotify init     OK
@@ -42,6 +42,10 @@ reported as contributing evidence only when the filesystem has no available
 blocks.
 
 Anything else is `UNKNOWN`.
+
+When every supported active probe succeeds, the result is
+`no_supported_failure` in JSON and `OK: no supported failure detected` in text.
+This is deliberately narrower than claiming that the filesystem is healthy.
 
 ## Install
 
