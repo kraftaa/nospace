@@ -20,7 +20,7 @@ PyPI API token in the repository.
 
 ## Validate without publishing
 
-Run the `Python wheels` workflow manually. The workflow builds four wheels and
+Run the `Python wheels` workflow manually. The workflow builds two wheels and
 installs the manylinux x86-64 wheel in a clean Python environment before
 running `nospace --version`. Manual runs never publish.
 
@@ -28,8 +28,6 @@ The release matrix contains:
 
 - manylinux 2.28 x86-64;
 - manylinux 2.28 ARM64;
-- musllinux 1.2 x86-64;
-- musllinux 1.2 ARM64.
 
 No source distribution is uploaded. Consequently, pip never falls back to
 compiling Rust when a user's platform is unsupported.

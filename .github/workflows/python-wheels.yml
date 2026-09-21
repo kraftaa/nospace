@@ -23,12 +23,6 @@ jobs:
           - label: manylinux-aarch64
             target: aarch64-unknown-linux-gnu
             compatibility: "2_28"
-          - label: musllinux-x86_64
-            target: x86_64-unknown-linux-musl
-            compatibility: musllinux_1_2
-          - label: musllinux-aarch64
-            target: aarch64-unknown-linux-musl
-            compatibility: musllinux_1_2
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

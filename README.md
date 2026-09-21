@@ -60,9 +60,9 @@ python -m pip install nospace-cli
 Do not run `pip install nospace`: that PyPI name belongs to an unrelated file
 renaming utility.
 
-Prebuilt wheels target glibc- and musl-based Linux on x86-64 and ARM64. Other
-platforms fail installation instead of attempting a source build. `nospace` is
-Linux-only.
+Prebuilt wheels target glibc-based Linux on x86-64 and ARM64. Other platforms,
+including musl-based distributions such as Alpine Linux, fail installation
+instead of attempting a source build. `nospace` is Linux-only.
 
 ## Usage
 
