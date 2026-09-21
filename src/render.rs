@@ -139,9 +139,40 @@ pub fn text(evidence: &Evidence, diagnosis: &DiagnosisResult, verbose: bool) -> 
         }
     }
 
-    if !evidence.proc_scan.inotify_consumers.is_empty()
-        && (verbose || diagnosis.causes.contains(&Diagnosis::InotifyExhaustion))
-    {
+    let show_inotify_details = verbose || diagnosis.causes.contains(&Diagnosis::InotifyExhaustion);
+    if show_inotify_details {
+        let observed_watches = evidence
+            .proc_scan
+            .inotify_consumers
+            .iter()
+            .fold(0u64, |total, consumer| {
+                total.saturating_add(consumer.watches)
+            });
+        writeln!(output, "\nInotify usage (current UID):").unwrap();
+        writeln!(
+            output,
+            "  observed watches       {}{}",
+            human_count(observed_watches),
+            if evidence.proc_scan.complete {
+                ""
+            } else {
+                " (lower bound; process scan incomplete)"
+            }
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "  max_user_watches       {}",
+            evidence
+                .inotify_limits
+                .max_user_watches
+                .map(human_count)
+                .unwrap_or_else(|| "unavailable".to_owned())
+        )
+        .unwrap();
+    }
+
+    if show_inotify_details && !evidence.proc_scan.inotify_consumers.is_empty() {
         writeln!(output, "\nTop inotify consumers:").unwrap();
         writeln!(output, "  PID       PROCESS                  WATCHES").unwrap();
         let limit = if verbose { usize::MAX } else { 10 };
@@ -217,4 +248,16 @@ pub fn human_bytes(bytes: u64) -> String {
     } else {
         format!("{value:.1} {}", UNITS[unit])
     }
+}
+
+fn human_count(value: u64) -> String {
+    let digits = value.to_string();
+    let mut output = String::with_capacity(digits.len() + digits.len() / 3);
+    for (index, digit) in digits.bytes().enumerate() {
+        if index > 0 && (digits.len() - index) % 3 == 0 {
+            output.push(',');
+        }
+        output.push(char::from(digit));
+    }
+    output
 }

@@ -30,7 +30,7 @@ fn successful_evidence() -> Evidence {
             add_watch: ProbeResult::Success,
         },
         inotify_limits: InotifyLimits {
-            max_user_watches: Some(100),
+            max_user_watches: Some(1_048_576),
             max_user_instances: Some(10),
             max_queued_events: Some(1000),
         },
@@ -62,8 +62,43 @@ fn successful_output_makes_a_narrow_claim_and_stays_quiet() {
     assert!(output.contains("file probe       OK"));
     assert!(output.contains("OK: no supported failure detected"));
     assert!(!output.contains("HEALTHY"));
+    assert!(!output.contains("Inotify usage"));
     assert!(!output.contains("Top inotify consumers"));
 
     let verbose = render::text(&evidence, &diagnosis, true);
+    assert!(verbose.contains("Inotify usage (current UID):"));
+    assert!(verbose.contains("observed watches       3"));
+    assert!(verbose.contains("max_user_watches       1,048,576"));
     assert!(verbose.contains("Top inotify consumers"));
+}
+
+#[test]
+fn incomplete_inotify_usage_is_labeled_as_a_lower_bound() {
+    let mut evidence = successful_evidence();
+    evidence.proc_scan.complete = false;
+    let diagnosis = DiagnosisResult {
+        status: ResultStatus::Unknown,
+        causes: Vec::new(),
+        contributing: Vec::new(),
+        notes: Vec::new(),
+    };
+
+    let output = render::text(&evidence, &diagnosis, true);
+    assert!(output.contains("3 (lower bound; process scan incomplete)"));
+}
+
+#[test]
+fn confirmed_inotify_exhaustion_shows_context_without_verbose() {
+    let evidence = successful_evidence();
+    let diagnosis = DiagnosisResult {
+        status: ResultStatus::Confirmed,
+        causes: vec![Diagnosis::InotifyExhaustion],
+        contributing: Vec::new(),
+        notes: Vec::new(),
+    };
+
+    let output = render::text(&evidence, &diagnosis, false);
+    assert!(output.contains("CONFIRMED: inotify resource exhaustion"));
+    assert!(output.contains("Inotify usage (current UID):"));
+    assert!(output.contains("Top inotify consumers:"));
 }

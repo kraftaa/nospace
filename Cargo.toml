@@ -1,6 +1,6 @@
 [package]
 name = "nospace"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "Evidence-based diagnosis for common Linux ENOSPC failures"
 license = "MIT"
