@@ -5,6 +5,7 @@ use std::path::PathBuf;
 fn evidence(create: ProbeResult, watch: ProbeResult, available: u64, inodes: u64) -> Evidence {
     Evidence {
         target: PathBuf::from("/test"),
+        target_exists: true,
         probe_directory: PathBuf::from("/test"),
         mount: MountInfo {
             mount_id: 1,

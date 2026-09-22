@@ -120,6 +120,7 @@ pub struct InotifyLimits {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Evidence {
     pub target: PathBuf,
+    pub target_exists: bool,
     pub probe_directory: PathBuf,
     pub mount: MountInfo,
     pub filesystem: FsStats,

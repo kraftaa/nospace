@@ -23,6 +23,22 @@ fn successful_directory_is_probed_and_cleaned_up() {
 }
 
 #[test]
+fn nonexistent_target_uses_nearest_existing_parent_without_creating_it() {
+    let directory = temporary_directory("missing-target");
+    let target = directory.join("missing").join("app.log");
+    let evidence = collect(&target, CollectOptions::default()).unwrap();
+
+    assert!(!evidence.target_exists);
+    assert_eq!(evidence.target, target);
+    assert_eq!(evidence.probe_directory, directory);
+    assert_eq!(diagnose(&evidence).status, ResultStatus::NoSupportedFailure);
+    assert!(!target.exists());
+    assert_eq!(fs::read_dir(&directory).unwrap().count(), 0);
+
+    fs::remove_dir(&directory).unwrap();
+}
+
+#[test]
 fn finds_a_deleted_open_file_by_link_count() {
     let directory = temporary_directory("deleted");
     let path = directory.join("held-open.log");

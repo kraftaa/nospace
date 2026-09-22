@@ -83,8 +83,10 @@ configured kernel limits, including utilization, remaining capacity, a direct
 probe assessment and per-process counts. If process visibility is incomplete,
 the observed totals are explicitly labeled as lower bounds.
 
-The target must exist. If it is a file, `nospace` creates its temporary probe
-in the parent directory.
+The target does not need to exist. For a missing target, `nospace` clearly
+reports that fact and probes the nearest existing parent without creating the
+requested path. If the target is an existing file, the temporary file probe is
+created in its parent directory.
 
 `--no-probe` performs no file creation and adds no inotify watch. It still
 reads filesystem statistics and accessible `/proc` information, but usually
@@ -110,7 +112,7 @@ nonzero. It can be combined with `--json` for automation.
 - `statvfs` block, inode and read-only state
 - A collision-safe `openat(O_CREAT | O_EXCL)` → unlink → write → `fsync` probe
 - `inotify_init1` and `inotify_add_watch` separately
-- Inotify limits and visible watches belonging to the current UID
+- Inotify limits and visible watches and instances belonging to the current UID
 - Accessible deleted-open regular files on the target filesystem
 
 `/proc` inspection can be incomplete because of permissions or because a

@@ -4,6 +4,13 @@ use std::fmt::Write;
 pub fn text(evidence: &Evidence, diagnosis: &DiagnosisResult, verbose: bool) -> String {
     let mut output = String::new();
     writeln!(output, "Target: {}", evidence.target.display()).unwrap();
+    if !evidence.target_exists {
+        writeln!(
+            output,
+            "Target exists: no (probing nearest existing parent)"
+        )
+        .unwrap();
+    }
     if evidence.probe_directory != evidence.target {
         writeln!(
             output,

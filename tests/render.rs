@@ -5,6 +5,7 @@ use std::path::PathBuf;
 fn successful_evidence() -> Evidence {
     Evidence {
         target: PathBuf::from("/test"),
+        target_exists: true,
         probe_directory: PathBuf::from("/test"),
         mount: MountInfo {
             mount_id: 1,
@@ -89,6 +90,25 @@ fn incomplete_inotify_usage_is_labeled_as_a_lower_bound() {
     let output = render::text(&evidence, &diagnosis, true);
     assert!(output.contains(">= 3 / 1,048,576 (lower bound; process scan incomplete)"));
     assert!(output.contains(">= 1 / 10 (lower bound; process scan incomplete)"));
+}
+
+#[test]
+fn missing_target_is_explicitly_labeled() {
+    let mut evidence = successful_evidence();
+    evidence.target = PathBuf::from("/missing/app.log");
+    evidence.target_exists = false;
+    evidence.probe_directory = PathBuf::from("/");
+    let diagnosis = DiagnosisResult {
+        status: ResultStatus::NoSupportedFailure,
+        causes: Vec::new(),
+        contributing: Vec::new(),
+        notes: Vec::new(),
+    };
+
+    let output = render::text(&evidence, &diagnosis, false);
+    assert!(output.contains("Target: /missing/app.log"));
+    assert!(output.contains("Target exists: no (probing nearest existing parent)"));
+    assert!(output.contains("Probe directory: /"));
 }
 
 #[test]
