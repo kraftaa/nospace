@@ -97,6 +97,7 @@ pub struct DeletedOpenFile {
 pub struct InotifyConsumer {
     pub pid: u32,
     pub process: String,
+    pub instances: u64,
     pub watches: u64,
 }
 

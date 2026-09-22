@@ -39,6 +39,7 @@ fn successful_evidence() -> Evidence {
             inotify_consumers: vec![InotifyConsumer {
                 pid: 42,
                 process: "editor".to_owned(),
+                instances: 1,
                 watches: 3,
             }],
             processes_scanned: 1,
@@ -67,9 +68,11 @@ fn successful_output_makes_a_narrow_claim_and_stays_quiet() {
 
     let verbose = render::text(&evidence, &diagnosis, true);
     assert!(verbose.contains("Inotify usage (current UID):"));
-    assert!(verbose.contains("observed watches       3"));
-    assert!(verbose.contains("max_user_watches       1,048,576"));
+    assert!(verbose.contains("watches                3 / 1,048,576 (<0.1%; 1,048,573 available)"));
+    assert!(verbose.contains("instances              1 / 10 (10.0%; 9 available)"));
+    assert!(verbose.contains("new instance and watch created successfully"));
     assert!(verbose.contains("Top inotify consumers"));
+    assert!(verbose.contains("INSTANCES  WATCHES"));
 }
 
 #[test]
@@ -84,7 +87,8 @@ fn incomplete_inotify_usage_is_labeled_as_a_lower_bound() {
     };
 
     let output = render::text(&evidence, &diagnosis, true);
-    assert!(output.contains("3 (lower bound; process scan incomplete)"));
+    assert!(output.contains(">= 3 / 1,048,576 (lower bound; process scan incomplete)"));
+    assert!(output.contains(">= 1 / 10 (lower bound; process scan incomplete)"));
 }
 
 #[test]

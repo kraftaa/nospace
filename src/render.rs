@@ -141,6 +141,13 @@ pub fn text(evidence: &Evidence, diagnosis: &DiagnosisResult, verbose: bool) -> 
 
     let show_inotify_details = verbose || diagnosis.causes.contains(&Diagnosis::InotifyExhaustion);
     if show_inotify_details {
+        let observed_instances = evidence
+            .proc_scan
+            .inotify_consumers
+            .iter()
+            .fold(0u64, |total, consumer| {
+                total.saturating_add(consumer.instances)
+            });
         let observed_watches = evidence
             .proc_scan
             .inotify_consumers
@@ -151,36 +158,45 @@ pub fn text(evidence: &Evidence, diagnosis: &DiagnosisResult, verbose: bool) -> 
         writeln!(output, "\nInotify usage (current UID):").unwrap();
         writeln!(
             output,
-            "  observed watches       {}{}",
-            human_count(observed_watches),
-            if evidence.proc_scan.complete {
-                ""
-            } else {
-                " (lower bound; process scan incomplete)"
-            }
+            "  watches                {}",
+            usage_label(
+                observed_watches,
+                evidence.inotify_limits.max_user_watches,
+                evidence.proc_scan.complete
+            )
         )
         .unwrap();
         writeln!(
             output,
-            "  max_user_watches       {}",
-            evidence
-                .inotify_limits
-                .max_user_watches
-                .map(human_count)
-                .unwrap_or_else(|| "unavailable".to_owned())
+            "  instances              {}",
+            usage_label(
+                observed_instances,
+                evidence.inotify_limits.max_user_instances,
+                evidence.proc_scan.complete
+            )
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "  assessment             {}",
+            inotify_assessment(evidence)
         )
         .unwrap();
     }
 
     if show_inotify_details && !evidence.proc_scan.inotify_consumers.is_empty() {
         writeln!(output, "\nTop inotify consumers:").unwrap();
-        writeln!(output, "  PID       PROCESS                  WATCHES").unwrap();
+        writeln!(
+            output,
+            "  PID       PROCESS                  INSTANCES  WATCHES"
+        )
+        .unwrap();
         let limit = if verbose { usize::MAX } else { 10 };
         for consumer in evidence.proc_scan.inotify_consumers.iter().take(limit) {
             writeln!(
                 output,
-                "  {:<9} {:<24} {}",
-                consumer.pid, consumer.process, consumer.watches
+                "  {:<9} {:<24} {:<10} {}",
+                consumer.pid, consumer.process, consumer.instances, consumer.watches
             )
             .unwrap();
         }
@@ -260,4 +276,50 @@ fn human_count(value: u64) -> String {
         output.push(char::from(digit));
     }
     output
+}
+
+fn usage_label(observed: u64, limit: Option<u64>, complete: bool) -> String {
+    let observed_label = human_count(observed);
+    let Some(limit) = limit else {
+        return format!("{observed_label} observed; limit unavailable");
+    };
+    if !complete {
+        return format!(
+            ">= {observed_label} / {} (lower bound; process scan incomplete)",
+            human_count(limit)
+        );
+    }
+    if limit == 0 {
+        return format!("{observed_label} / 0");
+    }
+    format!(
+        "{observed_label} / {} ({}; {} available)",
+        human_count(limit),
+        utilization(observed, limit),
+        human_count(limit.saturating_sub(observed))
+    )
+}
+
+fn utilization(observed: u64, limit: u64) -> String {
+    if observed == 0 {
+        return "0%".to_owned();
+    }
+    let percent = observed as f64 * 100.0 / limit as f64;
+    if percent < 0.1 {
+        "<0.1%".to_owned()
+    } else {
+        format!("{percent:.1}%")
+    }
+}
+
+fn inotify_assessment(evidence: &Evidence) -> &'static str {
+    if evidence.inotify_probe.add_watch.errno() == Some(libc::ENOSPC) {
+        "watch creation failed: inotify resources exhausted"
+    } else if matches!(evidence.inotify_probe.init, ProbeResult::Success)
+        && matches!(evidence.inotify_probe.add_watch, ProbeResult::Success)
+    {
+        "new instance and watch created successfully"
+    } else {
+        "probe did not establish available inotify capacity"
+    }
 }

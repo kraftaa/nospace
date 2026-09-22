@@ -110,12 +110,13 @@ pub fn scan(target_device: u64) -> ProcScan {
         }
 
         if process_metadata.uid() == current_uid {
-            let (watches, watch_scan_complete) = count_inotify_watches(&process_dir);
+            let (instances, watches, watch_scan_complete) = count_inotify_usage(&process_dir);
             process_incomplete |= !watch_scan_complete;
-            if watches > 0 {
+            if instances > 0 {
                 consumers.push(InotifyConsumer {
                     pid,
                     process,
+                    instances,
                     watches,
                 });
             }
@@ -127,7 +128,7 @@ pub fn scan(target_device: u64) -> ProcScan {
 
     let mut deleted_open: Vec<_> = deleted.into_values().collect();
     deleted_open.sort_by_key(|file| std::cmp::Reverse(file.allocated_bytes));
-    consumers.sort_by_key(|consumer| std::cmp::Reverse(consumer.watches));
+    consumers.sort_by_key(|consumer| std::cmp::Reverse((consumer.watches, consumer.instances)));
     ProcScan {
         deleted_open,
         inotify_consumers: consumers,
@@ -137,15 +138,36 @@ pub fn scan(target_device: u64) -> ProcScan {
     }
 }
 
-fn count_inotify_watches(process_dir: &Path) -> (u64, bool) {
+fn count_inotify_usage(process_dir: &Path) -> (u64, u64, bool) {
     let fdinfo = match fs::read_dir(process_dir.join("fdinfo")) {
         Ok(entries) => entries,
-        Err(_) => return (0, false),
+        Err(_) => return (0, 0, false),
     };
+    let mut instances = 0u64;
     let mut watches = 0u64;
     let mut complete = true;
     for entry in fdinfo {
-        let contents = match entry.and_then(|entry| fs::read_to_string(entry.path())) {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(_) => {
+                complete = false;
+                continue;
+            }
+        };
+        let descriptor = process_dir.join("fd").join(entry.file_name());
+        let target = match fs::read_link(descriptor) {
+            Ok(target) => target,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(_) => {
+                complete = false;
+                continue;
+            }
+        };
+        if target != Path::new("anon_inode:inotify") {
+            continue;
+        }
+        instances = instances.saturating_add(1);
+        let contents = match fs::read_to_string(entry.path()) {
             Ok(contents) => contents,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(_) => {
@@ -158,11 +180,47 @@ fn count_inotify_watches(process_dir: &Path) -> (u64, bool) {
             .filter(|line| line.starts_with("inotify wd:"))
             .count() as u64;
     }
-    (watches, complete)
+    (instances, watches, complete)
 }
 
 fn process_name(process_dir: &Path, pid: u32) -> String {
     fs::read_to_string(process_dir.join("comm"))
         .map(|name| name.trim().to_owned())
         .unwrap_or_else(|_| pid.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::count_inotify_usage;
+    use std::fs;
+    use std::os::unix::fs::symlink;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn counts_instances_including_instances_without_watches() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root =
+            std::env::temp_dir().join(format!("nospace-procfs-{}-{nonce}", std::process::id()));
+        let fd = root.join("fd");
+        let fdinfo = root.join("fdinfo");
+        fs::create_dir_all(&fd).unwrap();
+        fs::create_dir_all(&fdinfo).unwrap();
+
+        symlink("anon_inode:inotify", fd.join("3")).unwrap();
+        fs::write(
+            fdinfo.join("3"),
+            "pos:\t0\ninotify wd:1 ino:1\ninotify wd:2 ino:2\n",
+        )
+        .unwrap();
+        symlink("anon_inode:inotify", fd.join("4")).unwrap();
+        fs::write(fdinfo.join("4"), "pos:\t0\n").unwrap();
+        symlink("/tmp/not-inotify", fd.join("5")).unwrap();
+        fs::write(fdinfo.join("5"), "inotify wd:3 ino:3\n").unwrap();
+
+        assert_eq!(count_inotify_usage(&root), (2, 2, true));
+        fs::remove_dir_all(root).unwrap();
+    }
 }

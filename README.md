@@ -77,10 +77,10 @@ nospace PATH --verbose
 nospace PATH --no-probe
 ```
 
-`--verbose` includes the observed inotify watch total for the current UID, the
-configured `max_user_watches` limit and per-process watch counts. If process
-visibility is incomplete, the observed total is explicitly labeled as a lower
-bound.
+`--verbose` shows current-UID inotify watch and instance usage against the
+configured kernel limits, including utilization, remaining capacity, a direct
+probe assessment and per-process counts. If process visibility is incomplete,
+the observed totals are explicitly labeled as lower bounds.
 
 The target must exist. If it is a file, `nospace` creates its temporary probe
 in the parent directory.
