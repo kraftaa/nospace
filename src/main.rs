@@ -1,5 +1,5 @@
 use nospace::model::Report;
-use nospace::{CollectOptions, collect, diagnose};
+use nospace::{CollectOptions, ResultStatus, collect, diagnose};
 use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -7,12 +7,13 @@ use std::process::ExitCode;
 const HELP: &str = "nospace — evidence-based Linux ENOSPC diagnosis
 
 USAGE:
-    nospace PATH [--json] [--verbose] [--no-probe]
+    nospace PATH [--json] [--verbose] [--no-probe] [--check]
 
 OPTIONS:
     --json       Emit machine-readable JSON
     --verbose    Show all process evidence instead of the top entries
     --no-probe   Do not create a temporary file or add an inotify watch
+    --check      Exit 1 for confirmed failure or 3 for an unknown result
     -h, --help   Show this help
     -V, --version
                  Show the version";
@@ -23,6 +24,7 @@ struct Args {
     json: bool,
     verbose: bool,
     no_probe: bool,
+    check: bool,
 }
 
 fn main() -> ExitCode {
@@ -65,7 +67,11 @@ fn main() -> ExitCode {
             nospace::render::text(&evidence, &diagnosis, args.verbose)
         );
     }
-    ExitCode::SUCCESS
+    if args.check {
+        ExitCode::from(check_exit_code(diagnosis.status))
+    } else {
+        ExitCode::SUCCESS
+    }
 }
 
 fn parse_args() -> Result<Option<Args>, String> {
@@ -83,6 +89,7 @@ fn parse_args() -> Result<Option<Args>, String> {
             Some("--json") => parsed.json = true,
             Some("--verbose") => parsed.verbose = true,
             Some("--no-probe") => parsed.no_probe = true,
+            Some("--check") => parsed.check = true,
             Some(value) if value.starts_with('-') => {
                 return Err(format!("unknown option: {value}"));
             }
@@ -94,4 +101,25 @@ fn parse_args() -> Result<Option<Args>, String> {
         return Err("PATH is required".to_owned());
     }
     Ok(Some(parsed))
+}
+
+fn check_exit_code(status: ResultStatus) -> u8 {
+    match status {
+        ResultStatus::NoSupportedFailure => 0,
+        ResultStatus::Confirmed => 1,
+        ResultStatus::Unknown => 3,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::check_exit_code;
+    use nospace::ResultStatus;
+
+    #[test]
+    fn check_exit_codes_distinguish_all_result_states() {
+        assert_eq!(check_exit_code(ResultStatus::NoSupportedFailure), 0);
+        assert_eq!(check_exit_code(ResultStatus::Confirmed), 1);
+        assert_eq!(check_exit_code(ResultStatus::Unknown), 3);
+    }
 }

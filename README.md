@@ -75,6 +75,7 @@ nospace PATH
 nospace PATH --json
 nospace PATH --verbose
 nospace PATH --no-probe
+nospace PATH --check
 ```
 
 `--verbose` shows current-UID inotify watch and instance usage against the
@@ -88,6 +89,19 @@ in the parent directory.
 `--no-probe` performs no file creation and adds no inotify watch. It still
 reads filesystem statistics and accessible `/proc` information, but usually
 cannot produce a confirmed diagnosis.
+
+`--check` makes the diagnosis usable in scripts and monitoring while leaving
+the normal interactive command backward compatible:
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | No supported failure was detected |
+| `1` | A supported failure was confirmed |
+| `2` | Invalid command or evidence collection failed |
+| `3` | The result is `UNKNOWN` |
+
+The report is still printed with `--check`, including when the exit code is
+nonzero. It can be combined with `--json` for automation.
 
 ## What it inspects
 
