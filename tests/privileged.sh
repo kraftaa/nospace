@@ -17,6 +17,7 @@ chmod 0755 "$test_root"
 mounted=()
 holder_pid=""
 old_watches=$(cat /proc/sys/fs/inotify/max_user_watches)
+old_instances=$(cat /proc/sys/fs/inotify/max_user_instances)
 
 cleanup() {
   if [[ -n "$holder_pid" ]]; then
@@ -24,6 +25,7 @@ cleanup() {
     wait "$holder_pid" 2>/dev/null || true
   fi
   sysctl -q -w "fs.inotify.max_user_watches=$old_watches" >/dev/null 2>&1 || true
+  sysctl -q -w "fs.inotify.max_user_instances=$old_instances" >/dev/null 2>&1 || true
   for ((index=${#mounted[@]}-1; index>=0; index--)); do
     umount "${mounted[$index]}" 2>/dev/null || true
   done
@@ -46,7 +48,7 @@ if [[ ! -x "$binary" ]]; then
   cargo build --manifest-path "$project_dir/Cargo.toml" --release
 fi
 
-echo "[1/7] block exhaustion"
+echo "[1/8] block exhaustion"
 block_image="$test_root/block.img"
 block_mount="$test_root/block"
 truncate -s 32M "$block_image"
@@ -64,7 +66,7 @@ assert_cause "$test_root/block.json" block_exhaustion
 umount "$block_mount"
 mounted=()
 
-echo "[2/7] inode exhaustion"
+echo "[2/8] inode exhaustion"
 inode_image="$test_root/inode.img"
 inode_mount="$test_root/inode"
 truncate -s 32M "$inode_image"
@@ -79,14 +81,14 @@ done
 "$binary" "$inode_mount" --json > "$test_root/inode.json"
 assert_cause "$test_root/inode.json" inode_exhaustion
 
-echo "[3/7] read-only filesystem"
+echo "[3/8] read-only filesystem"
 mount -o remount,ro "$inode_mount"
 "$binary" "$inode_mount" --json > "$test_root/readonly.json"
 assert_cause "$test_root/readonly.json" read_only_filesystem
 umount "$inode_mount"
 mounted=()
 
-echo "[4/7] nested mount resolution"
+echo "[4/8] nested mount resolution"
 outer="$test_root/outer"
 inner="$outer/inner"
 mkdir "$outer"
@@ -106,7 +108,7 @@ umount "$inner"
 umount "$outer"
 mounted=()
 
-echo "[5/7] unknown result from an unsupported syscall failure"
+echo "[5/8] unknown result from an unsupported syscall failure"
 mkdir "$test_root/unknown"
 bash -c "ulimit -n 4; exec '$binary' '$test_root/unknown' --json" > "$test_root/unknown.json"
 python3 - "$test_root/unknown.json" <<'PY'
@@ -116,7 +118,7 @@ with open(sys.argv[1], encoding="utf-8") as stream:
 assert report["diagnosis"]["status"] == "unknown", report["diagnosis"]
 PY
 
-echo "[6/7] inotify exhaustion"
+echo "[6/8] inotify watch exhaustion"
 useradd --system --no-create-home nospace-test
 watch_root="$test_root/watches"
 mkdir "$watch_root"
@@ -141,7 +143,23 @@ kill "$holder_pid"
 wait "$holder_pid" 2>/dev/null || true
 holder_pid=""
 
-echo "[7/7] deleted-open blocks as contributing evidence"
+echo "[7/8] inotify instance exhaustion"
+instance_ready="$watch_root/instances-ready"
+sysctl -q -w fs.inotify.max_user_instances=8
+runuser -u nospace-test -- python3 - "$instance_ready" 8 < "$project_dir/tests/hold_instances.py" &
+holder_pid=$!
+for _ in $(seq 1 100); do
+  [[ -f "$instance_ready" ]] && break
+  sleep 0.05
+done
+[[ -f "$instance_ready" ]]
+runuser -u nospace-test -- "$inotify_binary" "$watch_root" --json > "$test_root/instances.json"
+assert_cause "$test_root/instances.json" inotify_instance_exhaustion
+kill "$holder_pid"
+wait "$holder_pid" 2>/dev/null || true
+holder_pid=""
+
+echo "[8/8] deleted-open blocks as contributing evidence"
 deleted_image="$test_root/deleted.img"
 deleted_mount="$test_root/deleted"
 deleted_ready="$test_root/deleted-ready"

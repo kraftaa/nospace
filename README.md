@@ -35,6 +35,10 @@ The initial classifier confirms only:
 - Read-only filesystem: the create probe returned `EROFS`.
 - Inotify exhaustion: file creation succeeded and `inotify_add_watch` returned
   `ENOSPC`.
+- Inotify instance exhaustion: file creation succeeded, `inotify_init1`
+  returned `EMFILE`, and the observed current-UID instance count reached the
+  configured `max_user_instances` limit. `EMFILE` without corroborating usage
+  remains `UNKNOWN` because it can also mean the process file-descriptor limit.
 
 Deleted-open files are detected by `st_nlink == 0`, grouped by device/inode,
 and measured using allocated blocks rather than apparent file size. They are

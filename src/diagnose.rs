@@ -36,6 +36,11 @@ pub fn diagnose(evidence: &Evidence) -> DiagnosisResult {
     {
         causes.push(Diagnosis::InotifyExhaustion);
     }
+    if matches!(evidence.create_probe.outcome, ProbeResult::Success)
+        && inotify_instance_limit_reached(evidence)
+    {
+        causes.push(Diagnosis::InotifyInstanceExhaustion);
+    }
 
     if evidence.filesystem.read_only && !causes.contains(&Diagnosis::ReadOnlyFilesystem) {
         notes.push(
@@ -119,6 +124,23 @@ fn unique_deleted_bytes(evidence: &Evidence) -> u64 {
         })
 }
 
+fn inotify_instance_limit_reached(evidence: &Evidence) -> bool {
+    if evidence.inotify_probe.init.errno() != Some(libc::EMFILE) {
+        return false;
+    }
+    let Some(limit) = evidence.inotify_limits.max_user_instances else {
+        return false;
+    };
+    evidence
+        .proc_scan
+        .inotify_consumers
+        .iter()
+        .fold(0u64, |total, consumer| {
+            total.saturating_add(consumer.instances)
+        })
+        >= limit
+}
+
 fn unknown_reason(evidence: &Evidence) -> String {
     if matches!(evidence.create_probe.outcome, ProbeResult::NotRun) {
         return "active probes were disabled; deterministic classification may be impossible"
@@ -131,6 +153,15 @@ fn unknown_reason(evidence: &Evidence) -> String {
         }
         return format!(
             "file creation failed with {}, which is not a supported confirmed diagnosis",
+            errno.name
+        );
+    }
+    if let ProbeResult::Error { errno, .. } = &evidence.inotify_probe.init {
+        if errno.code == libc::EMFILE {
+            return "inotify_init failed with EMFILE, but the evidence does not distinguish the per-user inotify instance limit from the process file-descriptor limit".to_owned();
+        }
+        return format!(
+            "inotify_init failed with {}, which is not a supported confirmed diagnosis",
             errno.name
         );
     }

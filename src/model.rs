@@ -136,6 +136,7 @@ pub enum Diagnosis {
     InodeExhaustion,
     BlockExhaustion,
     InotifyExhaustion,
+    InotifyInstanceExhaustion,
     ReadOnlyFilesystem,
 }
 

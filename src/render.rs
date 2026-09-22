@@ -146,7 +146,11 @@ pub fn text(evidence: &Evidence, diagnosis: &DiagnosisResult, verbose: bool) -> 
         }
     }
 
-    let show_inotify_details = verbose || diagnosis.causes.contains(&Diagnosis::InotifyExhaustion);
+    let show_inotify_details = verbose
+        || diagnosis.causes.contains(&Diagnosis::InotifyExhaustion)
+        || diagnosis
+            .causes
+            .contains(&Diagnosis::InotifyInstanceExhaustion);
     if show_inotify_details {
         let observed_instances = evidence
             .proc_scan
@@ -254,6 +258,7 @@ fn diagnosis_label(diagnosis: Diagnosis) -> &'static str {
         Diagnosis::InodeExhaustion => "inode exhaustion",
         Diagnosis::BlockExhaustion => "filesystem space exhausted",
         Diagnosis::InotifyExhaustion => "inotify resource exhaustion",
+        Diagnosis::InotifyInstanceExhaustion => "inotify instance limit exhausted",
         Diagnosis::ReadOnlyFilesystem => "filesystem is read-only",
     }
 }
@@ -322,6 +327,8 @@ fn utilization(observed: u64, limit: u64) -> String {
 fn inotify_assessment(evidence: &Evidence) -> &'static str {
     if evidence.inotify_probe.add_watch.errno() == Some(libc::ENOSPC) {
         "watch creation failed: inotify resources exhausted"
+    } else if evidence.inotify_probe.init.errno() == Some(libc::EMFILE) {
+        "instance creation failed with EMFILE; diagnosis requires usage evidence"
     } else if matches!(evidence.inotify_probe.init, ProbeResult::Success)
         && matches!(evidence.inotify_probe.add_watch, ProbeResult::Success)
     {

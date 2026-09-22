@@ -86,6 +86,29 @@ fn confirms_inotify_only_when_create_succeeds() {
 }
 
 #[test]
+fn confirms_instance_exhaustion_only_when_emfile_and_limit_usage_agree() {
+    let mut at_limit = evidence(ProbeResult::Success, ProbeResult::NotRun, 50, 50);
+    at_limit.inotify_probe.init = ProbeResult::Error {
+        phase: ProbePhase::Init,
+        errno: ErrnoInfo::new(libc::EMFILE),
+    };
+    at_limit.proc_scan.inotify_consumers = vec![InotifyConsumer {
+        pid: 42,
+        process: "watcher".to_owned(),
+        instances: 10,
+        watches: 0,
+    }];
+    let confirmed = diagnose(&at_limit);
+    assert_eq!(confirmed.causes, vec![Diagnosis::InotifyInstanceExhaustion]);
+
+    at_limit.proc_scan.inotify_consumers[0].instances = 9;
+    let ambiguous = diagnose(&at_limit);
+    assert_eq!(ambiguous.status, ResultStatus::Unknown);
+    assert!(ambiguous.causes.is_empty());
+    assert!(ambiguous.notes.iter().any(|note| note.contains("EMFILE")));
+}
+
+#[test]
 fn confirms_read_only_from_the_syscall() {
     let result = diagnose(&evidence(error(libc::EROFS), ProbeResult::Success, 50, 50));
     assert_eq!(result.causes, vec![Diagnosis::ReadOnlyFilesystem]);
